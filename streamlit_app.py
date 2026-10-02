@@ -3,7 +3,24 @@ import os
 import anthropic
 import streamlit as st
 
-MODEL = "claude-opus-5-5"
+# 모델별 요청 옵션: Haiku 4.5는 effort 설정과 서버 측 fallback을 지원하지 않음
+MODELS = {
+    "⚖️ Sonnet 5.5 (추천 · 균형)": {
+        "model": "claude-sonnet-5-5",
+        "output_config": {"effort": "low"},
+        "betas": ["server-side-fallback-2026-07-01"],
+        "fallbacks": "default",
+    },
+    "🧠 Opus 5.5 (가장 똑똑함 · 2배 비용)": {
+        "model": "claude-opus-5-5",
+        "output_config": {"effort": "low"},
+        "betas": ["server-side-fallback-2026-07-01"],
+        "fallbacks": "default",
+    },
+    "⚡ Haiku 4.5 (가장 저렴 · 빠름)": {
+        "model": "claude-haiku-4-5",
+    },
+}
 
 PERSONAS = {
     "🤖 만능 도우미": "당신은 친절하고 유능한 AI 도우미입니다. 한국어로 간결하고 정확하게 답하세요.",
@@ -46,6 +63,7 @@ def get_api_key() -> str | None:
 
 with st.sidebar:
     st.header("⚙️ 설정")
+    model_label = st.selectbox("AI 모델", list(MODELS))
     persona = st.selectbox("챗봇 성격", list(PERSONAS))
     system_prompt = st.text_area("시스템 프롬프트", PERSONAS[persona], height=150)
     api_key = get_api_key()
@@ -56,7 +74,7 @@ with st.sidebar:
         st.rerun()
 
 st.title("💬 AI 챗봇")
-st.caption("무엇이든 물어보세요! 왼쪽 위 » 버튼을 눌러 챗봇 성격을 바꿀 수 있어요.")
+st.caption("무엇이든 물어보세요! 왼쪽 위 » 버튼을 눌러 모델과 챗봇 성격을 바꿀 수 있어요.")
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
@@ -78,13 +96,10 @@ if prompt := st.chat_input("메시지를 입력하세요"):
 
     def stream_reply():
         with client.beta.messages.stream(
-            model=MODEL,
             max_tokens=16000,
             system=system_prompt,
             messages=st.session_state.messages,
-            output_config={"effort": "low"},
-            betas=["server-side-fallback-2026-07-01"],
-            fallbacks="default",
+            **MODELS[model_label],
         ) as stream:
             yield from stream.text_stream
             if stream.get_final_message().stop_reason == "refusal":
